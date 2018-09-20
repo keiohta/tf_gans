@@ -102,42 +102,40 @@ class GAN:
 
     def __call__(self, dataset, n_epoch):
         saver = tf.train.Saver()
-        assert isinstance(dataset, tf.data.Dataset), "[error] dataset must be an object of tf.data.Dataset"
-        iterator = dataset.shuffle(1000).repeat().batch(self.batch_size).make_one_shot_iterator()
-        n_trained_batch = 0
+
         print("[info] start training")
+        n_trained_step = 0
         for epoch in range(n_epoch):
-            while True:
-                try:
-                    batch = self.sess.run(iterator.get_next())
-                    n_trained_batch += 1
-                    z = np.random.standard_normal([self.batch_size, 100])
-                    d_loss, g_loss, *summaries = self.sess.run(
-                        [self.d_loss, self.g_loss] + self.summaries,
-                        feed_dict={self.img: batch, self.Z: z})
-                    self.logger.write_tf_summary(summaries, n_trained_batch * self.batch_size)
+            for _ in range(dataset.shape[0]//self.batch_size-1):
+                idx = n_trained_step // dataset.shape[0]
+                batch = dataset[idx:idx+self.batch_size]
+                n_trained_step += self.batch_size
 
-                    # update discriminator
-                    self.sess.run(self.opt_D, feed_dict={self.img: batch, self.Z: z})
-                    if self.gan_type is "WGAN":
-                        self.sess.run(self.clip)
-                    # update generator
-                    self.sess.run(self.opt_G, feed_dict={self.img: batch, self.Z: z})
+                z = np.random.standard_normal([self.batch_size, 100])
+                d_loss, g_loss, *summaries = self.sess.run(
+                    [self.d_loss, self.g_loss] + self.summaries,
+                    feed_dict={self.img: batch, self.Z: z})
+                self.logger.write_tf_summary(summaries, n_trained_step)
+                print("[info] epoch: {0: 4}, step: {1: 7}, d_loss: {2: 8.4f}, g_loss: {3: 8.4f}".format(epoch, n_trained_step, d_loss, g_loss))
 
-                    if n_trained_batch % 1 == 0:
-                        print("[info] epoch: {0: 4}, step: {1: 7}, d_loss: {2: 8.4f}, g_loss: {3: 8.4f}".format(epoch, n_trained_batch * self.batch_size,  d_loss, g_loss))
-                        self.test(batch, epoch)
-                except tf.errors.OutOfRangeError:
-                    break
-            saver.save(self.sess, "./para//model.ckpt")
+                # update discriminator
+                self.sess.run(self.opt_D, feed_dict={self.img: batch, self.Z: z})
+                if self.gan_type is "WGAN":
+                    self.sess.run(self.clip)
+                # update generator
+                self.sess.run(self.opt_G, feed_dict={self.img: batch, self.Z: z})
 
-    def test(self, batch, epoch):
+            print("[info] epoch: {0: 4}, step: {1: 7}, d_loss: {2: 8.4f}, g_loss: {3: 8.4f}".format(epoch, n_trained_step, d_loss, g_loss))
+            self.test(batch, n_trained_step)
+        saver.save(self.sess, self.logger.dir+"/{0:07}_model.ckpt".format(n_trained_step))
+
+    def test(self, batch, n_trained_step):
         z = np.random.standard_normal([self.batch_size, 100])
         imgs = self.sess.run(self.fake_img, feed_dict={self.img: batch, self.Z: z})
         for j in range(self.batch_size):
             if self.img_chan == 1:
                 Image.fromarray(np.reshape(np.uint8(mapping(imgs[j, :, :, :])), [self.img_size, self.img_size])).save(
-                    self.logger.dir + "/" + str(epoch) + "_" + str(j) + ".jpg")
+                    self.logger.dir + "/" + str(n_trained_batch) + "_" + str(j) + ".jpg")
             else:
                 Image.fromarray(np.uint8(mapping(imgs[j, :, :, :]))).save(
-                    self.logger.dir + "/" + str(epoch) + "_" + str(j) + ".jpg")
+                    self.logger.dir + "/" + str(n_trained_batch) + "_" + str(j) + ".jpg")

@@ -1,3 +1,4 @@
+import argparse
 import numpy as np
 import tensorflow as tf
 
@@ -12,15 +13,18 @@ def get_mnist_data():
     xs = np.concatenate((x_train, x_test), axis=0)
     xs = np.pad(xs, pad_width=((0, 0), (2, 2), (2, 2)), mode='constant', constant_values=0.)
     xs = np.expand_dims(xs, axis=xs.ndim)
-    dataset = tf.data.Dataset.from_tensor_slices(xs)
-    print("[info] done. shape: {}".format(dataset.output_shapes))
-    return dataset
+    return xs
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--gan-type', metavar='N', type=str, default="WGAN")
+    args = parser.parse_args()
+
     dataset = get_mnist_data()
-    gan = GAN(gan_type="DCGAN", batch_size=64, img_size=int(dataset.output_shapes[0]), img_chan=1)
-    gan(dataset, n_epoch=100)
+    gan = GAN(gan_type=args.gan_type, batch_size=64,
+              img_size=int(dataset.shape[1]), img_chan=dataset.shape[3])
+    gan(dataset, n_epoch=1)
 
 
 if __name__ == "__main__":

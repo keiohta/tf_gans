@@ -146,7 +146,7 @@ class GAN:
         for j in range(self.batch_size):
             if self.img_chan == 1:
                 Image.fromarray(np.reshape(np.uint8(mapping(imgs[j, :, :, :])), [self.img_size, self.img_size])).save(
-                    self.logger.dir + "/" + str(n_trained_batch) + "_" + str(j) + ".jpg")
+                    self.logger.dir + "/" + str(n_trained_step) + "_" + str(j) + ".jpg")
             else:
                 Image.fromarray(np.uint8(mapping(imgs[j, :, :, :]))).save(
-                    self.logger.dir + "/" + str(n_trained_batch) + "_" + str(j) + ".jpg")
+                    self.logger.dir + "/" + str(n_trained_step) + "_" + str(j) + ".jpg")

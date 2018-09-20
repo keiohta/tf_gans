@@ -24,7 +24,7 @@ def main():
     dataset = get_mnist_data()
     gan = GAN(gan_type=args.gan_type, batch_size=64,
               img_size=int(dataset.shape[1]), img_chan=dataset.shape[3])
-    gan(dataset, n_epoch=1)
+    gan(dataset, n_epoch=100)
 
 
 if __name__ == "__main__":

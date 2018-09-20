@@ -88,6 +88,17 @@ class GAN:
             self.g_loss = - tf.reduce_mean(tf.log(self.fake_logit + eps))
             self.opt_D = tf.train.AdamOptimizer(2e-4, beta1=0.5).minimize(self.d_loss, var_list=D.var)
             self.opt_G = tf.train.AdamOptimizer(2e-4, beta1=0.5).minimize(self.g_loss, var_list=G.var)
+        elif self.gan_type == "WGAN":
+            #WGAN, paper: Wasserstein GAN
+            self.fake_logit = D(self.fake_img)
+            self.real_logit = D(self.img, reuse=True)
+            self.d_loss = -tf.reduce_mean(self.real_logit) + tf.reduce_mean(self.fake_logit)
+            self.g_loss = -tf.reduce_mean(self.fake_logit)
+            self.clip = []
+            for _, var in enumerate(D.var):
+                self.clip.append(tf.clip_by_value(var, -0.01, 0.01))
+            self.opt_D = tf.train.RMSPropOptimizer(5e-5).minimize(self.d_loss, var_list=D.var)
+            self.opt_G = tf.train.RMSPropOptimizer(5e-5).minimize(self.g_loss, var_list=G.var)
         else:
             raise NotImplementedError
         # statistics

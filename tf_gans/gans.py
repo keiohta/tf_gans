@@ -99,6 +99,17 @@ class GAN:
                 self.clip.append(tf.clip_by_value(var, -0.01, 0.01))
             self.opt_D = tf.train.RMSPropOptimizer(5e-5).minimize(self.d_loss, var_list=D.var)
             self.opt_G = tf.train.RMSPropOptimizer(5e-5).minimize(self.g_loss, var_list=G.var)
+        elif self.gan_type == "WGAN-GP":
+            #WGAN-GP, paper: Improved Training of Wasserstein GANs
+            self.fake_logit = D(self.fake_img)
+            self.real_logit = D(self.img, reuse=True)
+            e = tf.random_uniform([self.batch_size, 1, 1, 1], 0, 1)
+            x_hat = e * self.img + (1 - e) * self.fake_img
+            grad = tf.gradients(D(x_hat, reuse=True), x_hat)[0]
+            self.d_loss = tf.reduce_mean(self.fake_logit - self.real_logit) + 10 * tf.reduce_mean(tf.square(tf.sqrt(tf.reduce_sum(tf.square(grad), axis=[1, 2, 3])) - 1))
+            self.g_loss = tf.reduce_mean(-self.fake_logit)
+            self.opt_D = tf.train.AdamOptimizer(1e-4, beta1=0., beta2=0.9).minimize(self.d_loss, var_list=D.var)
+            self.opt_G = tf.train.AdamOptimizer(1e-4, beta1=0., beta2=0.9).minimize(self.g_loss, var_list=G.var)
         else:
             raise NotImplementedError
         # statistics

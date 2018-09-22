@@ -5,7 +5,7 @@ import tensorflow as tf
 from PIL import Image
 
 from layers import *
-from misc import Logger, mapping
+from misc import Logger, immerge
 
 
 class Generator:
@@ -45,13 +45,13 @@ class Discriminator:
     def __call__(self, inputs, reuse=False, enable_sn=False):
         with tf.variable_scope(self.name, reuse=reuse):
             with tf.variable_scope("conv1"):
-                inputs = leaky_relu(conv(inputs, [5, 5, self.img_chan, 64], [1, 2, 2, 1], enable_sn))
+                inputs = tf.nn.leaky_relu(conv(inputs, [5, 5, self.img_chan, 64], [1, 2, 2, 1], enable_sn))
             with tf.variable_scope("conv2"):
-                inputs = leaky_relu(instanceNorm(conv(inputs, [5, 5, 64, 128], [1, 2, 2, 1], enable_sn)))
+                inputs = tf.nn.leaky_relu(instanceNorm(conv(inputs, [5, 5, 64, 128], [1, 2, 2, 1], enable_sn)))
             with tf.variable_scope("conv3"):
-                inputs = leaky_relu(instanceNorm(conv(inputs, [5, 5, 128, 256], [1, 2, 2, 1], enable_sn)))
+                inputs = tf.nn.leaky_relu(instanceNorm(conv(inputs, [5, 5, 128, 256], [1, 2, 2, 1], enable_sn)))
             with tf.variable_scope("conv4"):
-                inputs = leaky_relu(instanceNorm(conv(inputs, [5, 5, 256, 512], [1, 2, 2, 1], enable_sn)))
+                inputs = tf.nn.leaky_relu(instanceNorm(conv(inputs, [5, 5, 256, 512], [1, 2, 2, 1], enable_sn)))
             with tf.variable_scope("logits"):
                 inputs = tf.layers.flatten(inputs)
             return fully_connected(inputs, 1, enable_sn)
@@ -92,8 +92,8 @@ class GAN:
             #WGAN, paper: Wasserstein GAN
             self.fake_logit = D(self.fake_img)
             self.real_logit = D(self.img, reuse=True)
-            self.d_loss = -tf.reduce_mean(self.real_logit) + tf.reduce_mean(self.fake_logit)
-            self.g_loss = -tf.reduce_mean(self.fake_logit)
+            self.d_loss = - (tf.reduce_mean(self.real_logit) - tf.reduce_mean(self.fake_logit))
+            self.g_loss = - tf.reduce_mean(self.fake_logit)
             self.clip = []
             for _, var in enumerate(D.var):
                 self.clip.append(tf.clip_by_value(var, -0.01, 0.01))
@@ -111,7 +111,7 @@ class GAN:
         self.sess.run(tf.global_variables_initializer())
         self.logger.log_graph(sess=self.sess)
 
-    def __call__(self, dataset, n_epoch):
+    def __call__(self, dataset, n_epoch, test_batch_interval):
         saver = tf.train.Saver()
 
         print("[info] start training")
@@ -135,6 +135,9 @@ class GAN:
                     self.sess.run(self.clip)
                 # update generator
                 self.sess.run(self.opt_G, feed_dict={self.img: batch, self.Z: z})
+                # test
+                if (n_trained_step / self.batch_size) % test_batch_interval == 0:
+                    self.test(batch, n_trained_step)
 
             print("[info] epoch: {0: 4}, step: {1: 7}, d_loss: {2: 8.4f}, g_loss: {3: 8.4f}".format(epoch, n_trained_step, d_loss, g_loss))
             self.test(batch, n_trained_step)
@@ -143,10 +146,4 @@ class GAN:
     def test(self, batch, n_trained_step):
         z = np.random.standard_normal([self.batch_size, 100])
         imgs = self.sess.run(self.fake_img, feed_dict={self.img: batch, self.Z: z})
-        for j in range(self.batch_size):
-            if self.img_chan == 1:
-                Image.fromarray(np.reshape(np.uint8(mapping(imgs[j, :, :, :])), [self.img_size, self.img_size])).save(
-                    self.logger.dir + "/" + str(n_trained_step) + "_" + str(j) + ".jpg")
-            else:
-                Image.fromarray(np.uint8(mapping(imgs[j, :, :, :]))).save(
-                    self.logger.dir + "/" + str(n_trained_step) + "_" + str(j) + ".jpg")
+        Image.fromarray(immerge(imgs)).save("{}/{:06}.jpg".format(self.logger.dir, n_trained_step))

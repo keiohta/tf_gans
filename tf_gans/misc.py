@@ -48,3 +48,21 @@ def mapping(x):
     max = np.max(x)
     min = np.min(x)
     return (x - min) * 255.0 / (max - min + 1e-14)
+
+
+def immerge(imgs, row=8, col=8):
+    """
+    merge images into an image with (row * h) * (col * w)
+    `imgs` is in shape of N * H * W (* C=1 or 3)
+    """
+    h, w = imgs.shape[1], imgs.shape[2]
+    if imgs.ndim == 4:
+        img = np.zeros((h * row, w * col, imgs.shape[3]))
+    elif imgs.ndim == 3:
+        img = np.zeros((h * row, w * col))
+
+    for idx, _img in enumerate(imgs):
+        i = idx % col
+        j = idx // col
+        img[j * h:j * h + h, i * w:i * w + w, ...] = np.uint8(mapping(_img))
+    return np.uint8(img[:, :, 0]) if imgs.shape[3] == 1 else np.uint8(img)

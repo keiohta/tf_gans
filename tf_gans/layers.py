@@ -54,7 +54,3 @@ def fully_connected(inputs, n_out, enable_sn=False):
     W = tf.get_variable("W", [inputs.shape[-1], n_out], initializer=tf.random_normal_initializer(stddev=0.02))
     b = tf.get_variable("b", [n_out], initializer=tf.constant_initializer([0]))
     return tf.matmul(inputs, spectral_norm("sn", W)) + b if enable_sn else tf.matmul(inputs, W) + b
-
-
-def leaky_relu(inputs, slope=0.2):
-    return tf.maximum(slope*inputs, inputs)

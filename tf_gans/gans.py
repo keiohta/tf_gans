@@ -9,13 +9,16 @@ from misc import Logger, immerge
 
 
 class Generator:
-    def __init__(self, name, batch_size, img_size, img_chan):
+    def __init__(self, name, batch_size, img_size, img_chan, model_fn=None):
         self.name = name
         self.batch_size = batch_size
         self.img_size = img_size
         self.img_chan = img_chan
+        self.model_fn = model_fn
 
     def __call__(self, inputs):
+        if self.model_fn is not None:
+            return self.model_fn(self.name, inputs, self.batch_size, self.img_size, self.img_chan)
         with tf.variable_scope(self.name):
             with tf.variable_scope("linear"):
                 inputs = tf.reshape((tf.nn.relu((fully_connected(inputs, 4*4*512)))), [self.batch_size, 4, 4, 512])
@@ -36,13 +39,16 @@ class Generator:
 
 
 class Discriminator:
-    def __init__(self, name, batch_size, img_size, img_chan):
+    def __init__(self, name, batch_size, img_size, img_chan, model_fn=None):
         self.name = name
         self.batch_size = batch_size
         self.img_size = img_size
         self.img_chan = img_chan
+        self.model_fn = model_fn
 
     def __call__(self, inputs, reuse=False, enable_sn=False):
+        if self.model_fn is not None:
+            return self.model_fn(self.name, inputs, self.batch_size, self.img_size, self.img_chan, enable_sn, reuse)
         with tf.variable_scope(self.name, reuse=reuse):
             with tf.variable_scope("conv1"):
                 inputs = tf.nn.leaky_relu(conv(inputs, [5, 5, self.img_chan, 64], [1, 2, 2, 1], enable_sn))
@@ -62,7 +68,7 @@ class Discriminator:
 
 
 class GAN:
-    def __init__(self, gan_type, batch_size, img_size, img_chan):
+    def __init__(self, gan_type, batch_size, img_size, img_chan, discriminator_fn=None, generator_fn=None):
         self.gan_types = ["DCGAN", "WGAN", "WGAN-GP", "LSGAN", "SNGAN", "RSGAN", "RaSGAN"]
         assert gan_type in self.gan_types, "[error] not implemented gan_type `{}` specified. choose from following.\r\n{}".format(gan_type, self.gan_types)
         self.gan_type = gan_type
@@ -70,13 +76,13 @@ class GAN:
         self.img_size = img_size
         self.img_chan = img_chan
         self.logger = Logger()
-        self._init()
+        self._init(discriminator_fn, generator_fn)
 
-    def _init(self):
+    def _init(self, discriminator_fn, generator_fn):
         self.Z = tf.placeholder(tf.float32, shape=[self.batch_size, 100])
         self.img = tf.placeholder(tf.float32, shape=[self.batch_size, self.img_size, self.img_size, self.img_chan])
-        D = Discriminator("Discriminator", self.batch_size, self.img_size, self.img_chan)
-        G = Generator("Generator", self.batch_size, self.img_size, self.img_chan)
+        D = Discriminator("Discriminator", self.batch_size, self.img_size, self.img_chan, discriminator_fn)
+        G = Generator("Generator", self.batch_size, self.img_size, self.img_chan, generator_fn)
 
         # with tf.variable_scope(self.gan_type):
         self.fake_img = G(self.Z)

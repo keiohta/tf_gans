@@ -81,13 +81,14 @@ class GAN:
         # with tf.variable_scope(self.gan_type):
         self.fake_img = G(self.Z)
         eps = 1e-14
-        if self.gan_type is "DCGAN":
+        self.summaries = []
+        if self.gan_type == "DCGAN":
             self.fake_logit = tf.nn.sigmoid(D(self.fake_img))
             self.real_logit = tf.nn.sigmoid(D(self.img, reuse=True))
             self.d_loss = - (tf.reduce_mean(tf.log(self.real_logit + eps)) + tf.reduce_mean(tf.log(1 - self.fake_logit + eps)))
             self.g_loss = - tf.reduce_mean(tf.log(self.fake_logit + eps))
             self.opt_D = tf.train.AdamOptimizer(2e-4, beta1=0.5).minimize(self.d_loss, var_list=D.var)
-            self.opt_G = tf.train.AdamOptimizer(2e-4, beta1=0.5).minimize(self.g_loss, var_list=G.var)
+            self.opt_G = tf.train.AdamOptimizer(2e-4, beta1=0.5).minimize(self.g_loss, var_list=G.var) 
         elif self.gan_type == "WGAN":
             #WGAN, paper: Wasserstein GAN
             self.fake_logit = D(self.fake_img)
@@ -114,9 +115,12 @@ class GAN:
             raise NotImplementedError
         # statistics
         with tf.variable_scope("statictics"):
-            self.summaries = [
-                tf.summary.scalar("d_loss", self.d_loss),
-                tf.summary.scalar("g_loss", self.g_loss)]
+            if self.gan_type in ["DCGAN"]:
+                self.summaries.append(tf.summary.scalar(
+                    "accuracy", (tf.reduce_mean(tf.cast(self.fake_logit < 0.5, tf.float32)) + tf.reduce_mean(tf.cast(self.real_logit > 0.5, tf.float32))) / 2.))
+                self.summaries.append(tf.summary.scalar("js_divergence", self.calc_js_divergence()))
+            self.summaries.append(tf.summary.scalar("d_loss", self.d_loss))
+            self.summaries.append(tf.summary.scalar("g_loss", self.g_loss))
 
         self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
@@ -158,3 +162,7 @@ class GAN:
         z = np.random.standard_normal([self.batch_size, 100])
         imgs = self.sess.run(self.fake_img, feed_dict={self.img: batch, self.Z: z})
         Image.fromarray(immerge(imgs)).save("{}/{:06}.jpg".format(self.logger.dir, n_trained_step))
+
+    def calc_js_divergence(self):
+        m = (self.fake_logit + self.real_logit) / 2.
+        return tf.reduce_mean((self.fake_logit * tf.log(self.fake_logit / m) + self.real_logit * tf.log(self.real_logit / m)) / 2.)

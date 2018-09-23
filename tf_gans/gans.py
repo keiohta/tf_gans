@@ -71,6 +71,7 @@ class GAN:
         self.img_chan = img_chan
         self.logger = Logger()
         self._init()
+        self.n_disc_update = 1  # number of times to update discriminator (critic)
 
     def _init(self):
         self.Z = tf.placeholder(tf.float32, shape=[self.batch_size, 100])
@@ -100,6 +101,7 @@ class GAN:
                 self.clip.append(tf.clip_by_value(var, -0.01, 0.01))
             self.opt_D = tf.train.RMSPropOptimizer(5e-5).minimize(self.d_loss, var_list=D.var)
             self.opt_G = tf.train.RMSPropOptimizer(5e-5).minimize(self.g_loss, var_list=G.var)
+            self.n_disc_update = 5
         elif self.gan_type == "WGAN-GP":
             #WGAN-GP, paper: Improved Training of Wasserstein GANs
             self.fake_logit = D(self.fake_img)
@@ -111,6 +113,7 @@ class GAN:
             self.g_loss = tf.reduce_mean(-self.fake_logit)
             self.opt_D = tf.train.AdamOptimizer(1e-4, beta1=0., beta2=0.9).minimize(self.d_loss, var_list=D.var)
             self.opt_G = tf.train.AdamOptimizer(1e-4, beta1=0., beta2=0.9).minimize(self.g_loss, var_list=G.var)
+            self.n_disc_update = 5
         else:
             raise NotImplementedError
         # statistics
@@ -132,29 +135,33 @@ class GAN:
         print("[info] start training")
         n_trained_step = 0
         for epoch in range(n_epoch):
-            for _ in range(dataset.shape[0]//self.batch_size-1):
+            for _ in range(dataset.shape[0]//(self.batch_size * self.n_disc_update)-1):
                 idx = n_trained_step // dataset.shape[0]
-                batch = dataset[idx:idx+self.batch_size]
-                n_trained_step += self.batch_size
-
-                z = np.random.standard_normal([self.batch_size, 100])
-                d_loss, g_loss, *summaries = self.sess.run(
-                    [self.d_loss, self.g_loss] + self.summaries,
-                    feed_dict={self.img: batch, self.Z: z})
-                self.logger.write_tf_summary(summaries, n_trained_step)
-                print("[info] epoch: {0: 4}, step: {1: 7}, d_loss: {2: 8.4f}, g_loss: {3: 8.4f}".format(epoch, n_trained_step, d_loss, g_loss))
 
                 # update discriminator
-                self.sess.run(self.opt_D, feed_dict={self.img: batch, self.Z: z})
-                if self.gan_type is "WGAN":
-                    self.sess.run(self.clip)
+                average_d_loss = 0.
+                for _ in range(self.n_disc_update):
+                    batch = dataset[idx:idx+self.batch_size]
+                    idx += self.batch_size
+                    n_trained_step += self.batch_size
+                    d_loss, _, *summaries = self.sess.run(
+                        [self.d_loss, self.opt_D] + self.summaries,
+                        feed_dict={self.img: batch, self.Z: np.random.standard_normal([self.batch_size, 100])})
+                    if self.gan_type is "WGAN":
+                        self.sess.run(self.clip)
+                    average_d_loss += d_loss
+                average_d_loss /= self.n_disc_update
+
                 # update generator
-                self.sess.run(self.opt_G, feed_dict={self.img: batch, self.Z: z})
+                g_loss, _ = self.sess.run([self.g_loss, self.opt_G], feed_dict={self.img: batch, self.Z: np.random.standard_normal([self.batch_size, 100])})
+
+                self.logger.write_tf_summary(summaries, n_trained_step)
+                print("[info] epoch: {0: 4}, step: {1: 7}, d_loss: {2: 8.4f}, g_loss: {3: 8.4f}".format(epoch, n_trained_step, average_d_loss, g_loss))
+
                 # test
                 if (n_trained_step / self.batch_size) % test_batch_interval == 0:
                     self.test(batch, n_trained_step)
 
-            print("[info] epoch: {0: 4}, step: {1: 7}, d_loss: {2: 8.4f}, g_loss: {3: 8.4f}".format(epoch, n_trained_step, d_loss, g_loss))
             self.test(batch, n_trained_step)
         saver.save(self.sess, self.logger.dir+"/{0:07}_model.ckpt".format(n_trained_step))
 

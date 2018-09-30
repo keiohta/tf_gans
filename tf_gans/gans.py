@@ -122,6 +122,8 @@ class GAN:
                 self.summaries.append(tf.summary.scalar(
                     "accuracy", (tf.reduce_mean(tf.cast(self.fake_logit < 0.5, tf.float32)) + tf.reduce_mean(tf.cast(self.real_logit > 0.5, tf.float32))) / 2.))
                 self.summaries.append(tf.summary.scalar("js_divergence", self.calc_js_divergence()))
+            elif self.gan_type in ["WGAN", "WGAN-GP"]:
+                self.summaries.append(tf.summary.scalar("wasserstein_estimate", tf.abs(self.d_loss)))
             self.summaries.append(tf.summary.scalar("d_loss", self.d_loss))
             self.summaries.append(tf.summary.scalar("g_loss", self.g_loss))
 

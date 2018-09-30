@@ -21,7 +21,7 @@ class Generator:
             return self.model_fn(self.name, inputs, self.batch_size, self.img_size, self.img_chan)
         with tf.variable_scope(self.name):
             with tf.variable_scope("linear"):
-                inputs = tf.reshape((tf.nn.relu((fully_connected(inputs, 4*4*512)))), [self.batch_size, 4, 4, 512])
+                inputs = tf.reshape(tf.nn.relu(fully_connected(inputs, 4*4*512)), [self.batch_size, 4, 4, 512])
             with tf.variable_scope("deconv1"):
                 inputs = tf.nn.relu(instanceNorm(deconv(inputs, [5, 5, 256, 512], [1, 2, 2, 1], [self.batch_size, 8, 8, 256])))
             with tf.variable_scope("deconv2"):

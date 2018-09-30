@@ -20,12 +20,13 @@ def get_mnist_data():
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--gan-type', type=str, default="WGAN")
-    parser.add_argument('--test-batch-interval', type=int, default=10)
+    parser.add_argument('--test-batch-interval', type=int, default=100)
     args = parser.parse_args()
 
     def discriminator_fn():
         def func(name, inputs, batch_size, img_size, img_chan, enable_sn=False, reuse=False):
-            with tf.variable_scope(name):
+            with tf.variable_scope(name, reuse=reuse):
+                inputs = tf.layers.flatten(inputs)
                 with tf.variable_scope("fc1"):
                     inputs = tf.nn.relu(fully_connected(inputs, 1024, enable_sn))
                 with tf.variable_scope("fc2"):
@@ -42,7 +43,7 @@ def main():
                     inputs = tf.nn.relu(fully_connected(inputs, 1024))
                 with tf.variable_scope("output"):
                     inputs = tf.nn.tanh(fully_connected(inputs, img_size*img_size*img_chan))
-                    inputs = tf.reshape(inputs, [img_size, img_size, img_chan])
+                    inputs = tf.reshape(inputs, [batch_size, img_size, img_size, img_chan])
                 return inputs
         return func
 

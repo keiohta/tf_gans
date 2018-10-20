@@ -20,6 +20,7 @@ def get_mnist_data():
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--gan-type', type=str, default="WGAN")
+    parser.add_argument('--n-epochs', type=int, default=100)
     parser.add_argument('--test-batch-interval', type=int, default=100)
     args = parser.parse_args()
 
@@ -51,7 +52,7 @@ def main():
     gan = GAN(gan_type=args.gan_type, batch_size=64,
               img_size=int(dataset.shape[1]), img_chan=dataset.shape[3],
               discriminator_fn=discriminator_fn(), generator_fn=generator_fn())
-    gan(dataset, n_epoch=100, test_batch_interval=args.test_batch_interval)
+    gan(dataset, n_epoch=args.n_epochs, test_batch_interval=args.test_batch_interval)
 
 
 if __name__ == "__main__":

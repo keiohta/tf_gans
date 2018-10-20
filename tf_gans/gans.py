@@ -2,7 +2,6 @@
 
 import numpy as np
 import tensorflow as tf
-from PIL import Image
 from tqdm import tqdm
 
 from layers import *
@@ -91,6 +90,8 @@ class GAN:
         eps = 1e-14
         self.summaries = []
         if self.gan_type == "DCGAN":
+            # paper: Unsupervised Representation Learning with Deep Convolutional Generative Adversarial Networks
+            # https://arxiv.org/abs/1511.06434
             self.fake_logit = tf.nn.sigmoid(D(self.fake_img))
             self.real_logit = tf.nn.sigmoid(D(self.img, reuse=True))
             self.d_loss = - (tf.reduce_mean(tf.log(self.real_logit + eps)) + tf.reduce_mean(tf.log(1 - self.fake_logit + eps)))
@@ -98,7 +99,8 @@ class GAN:
             self.opt_D = tf.train.AdamOptimizer(2e-4, beta1=0.5).minimize(self.d_loss, var_list=D.var)
             self.opt_G = tf.train.AdamOptimizer(2e-4, beta1=0.5).minimize(self.g_loss, var_list=G.var) 
         elif self.gan_type == "WGAN":
-            #WGAN, paper: Wasserstein GAN
+            # paper: Wasserstein GAN
+            # https://arxiv.org/abs/1701.07875
             self.fake_logit = D(self.fake_img)
             self.real_logit = D(self.img, reuse=True)
             self.d_loss = - (tf.reduce_mean(self.real_logit) - tf.reduce_mean(self.fake_logit))
@@ -110,7 +112,8 @@ class GAN:
             self.opt_G = tf.train.RMSPropOptimizer(5e-5).minimize(self.g_loss, var_list=G.var)
             self.n_disc_update = 5
         elif self.gan_type == "WGAN-GP":
-            #WGAN-GP, paper: Improved Training of Wasserstein GANs
+            # paper: Improved Training of Wasserstein GANs
+            # https://arxiv.org/abs/1704.00028
             self.fake_logit = D(self.fake_img)
             self.real_logit = D(self.img, reuse=True)
             e = tf.random_uniform([self.batch_size, 1, 1, 1], 0, 1)
@@ -121,13 +124,32 @@ class GAN:
             self.opt_D = tf.train.AdamOptimizer(1e-4, beta1=0., beta2=0.9).minimize(self.d_loss, var_list=D.var)
             self.opt_G = tf.train.AdamOptimizer(1e-4, beta1=0., beta2=0.9).minimize(self.g_loss, var_list=G.var)
             self.n_disc_update = 5
+        elif self.gan_type == "LSGAN":
+            # paper: Least Squares Generative Adversarial Networks
+            # https://arxiv.org/abs/1611.04076
+            self.fake_logit = D(self.fake_img)
+            self.real_logit = D(self.img, reuse=True)
+            self.d_loss = tf.reduce_mean(0.5 * tf.square(self.real_logit - 1) + 0.5 * tf.square(self.fake_logit))
+            self.g_loss = tf.reduce_mean(0.5 * tf.square(self.fake_logit - 1))
+            self.opt_D = tf.train.AdamOptimizer(2e-4, beta1=0.5).minimize(self.d_loss, var_list=D.var)
+            self.opt_G = tf.train.AdamOptimizer(2e-4, beta1=0.5).minimize(self.g_loss, var_list=G.var)
+        elif self.gan_type == "SNGAN":
+            # paper: Spectral Normalization for Generative Adversarial Networks
+            # https://arxiv.org/abs/1802.05957
+            self.fake_logit = tf.nn.sigmoid(D(self.fake_img, enable_sn=True))
+            self.real_logit = tf.nn.sigmoid(D(self.img, reuse=True, enable_sn=True))
+            self.d_loss = - (tf.reduce_mean(tf.log(self.real_logit + eps) + tf.log(1 - self.fake_logit + eps)))
+            self.g_loss = - tf.reduce_mean(tf.log(self.fake_logit + eps))
+            self.opt_D = tf.train.AdamOptimizer(2e-4, beta1=0.5).minimize(self.d_loss, var_list=D.var)
+            self.opt_G = tf.train.AdamOptimizer(2e-4, beta1=0.5).minimize(self.g_loss, var_list=G.var)
         else:
             raise NotImplementedError
         # statistics
         with tf.variable_scope("statictics"):
-            if self.gan_type in ["DCGAN"]:
+            if self.gan_type in ["DCGAN", "SNGAN"]:
                 self.summaries.append(tf.summary.scalar(
                     "accuracy", (tf.reduce_mean(tf.cast(self.fake_logit < 0.5, tf.float32)) + tf.reduce_mean(tf.cast(self.real_logit > 0.5, tf.float32))) / 2.))
+                self.summaries.append(tf.summary.scalar("kl_divergence", self.calc_kl_divergence()))
                 self.summaries.append(tf.summary.scalar("js_divergence", self.calc_js_divergence()))
             elif self.gan_type in ["WGAN", "WGAN-GP"]:
                 self.summaries.append(tf.summary.scalar("wasserstein_estimate", tf.abs(self.d_loss)))
@@ -177,8 +199,11 @@ class GAN:
     def test(self, batch, n_trained_step):
         z = np.random.standard_normal([self.batch_size, 100])
         imgs = self.sess.run(self.fake_img, feed_dict={self.img: batch, self.Z: z})
-        Image.fromarray(immerge(imgs)).save("{}/{:06}.jpg".format(self.logger.dir, n_trained_step))
+        self.logger.save_img(imgs, n_trained_step)
 
     def calc_js_divergence(self):
         m = (self.fake_logit + self.real_logit) / 2.
         return tf.reduce_mean((self.fake_logit * tf.log(self.fake_logit / m) + self.real_logit * tf.log(self.real_logit / m)) / 2.)
+
+    def calc_kl_divergence(self):
+        return tf.reduce_mean(self.fake_logit * tf.log(self.fake_logit / 0.5) + (1. - self.fake_logit) * tf.log((1. - self.fake_logit) / 2.))

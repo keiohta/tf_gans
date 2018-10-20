@@ -3,6 +3,7 @@
 import numpy as np
 import tensorflow as tf
 from PIL import Image
+from tqdm import tqdm
 
 from layers import *
 from misc import Logger, immerge
@@ -143,7 +144,7 @@ class GAN:
         print("[info] start training")
         n_trained_step = 0
         for epoch in range(n_epoch):
-            for _ in range(dataset.shape[0]//(self.batch_size * self.n_disc_update)-1):
+            for _ in tqdm(range(dataset.shape[0]//(self.batch_size * self.n_disc_update)-1)):
                 idx = n_trained_step // dataset.shape[0]
 
                 # update discriminator
@@ -164,13 +165,13 @@ class GAN:
                 g_loss, _ = self.sess.run([self.g_loss, self.opt_G], feed_dict={self.img: batch, self.Z: np.random.standard_normal([self.batch_size, 100])})
 
                 self.logger.write_tf_summary(summaries, n_trained_step)
-                print("[info] epoch: {0: 4}, step: {1: 7}, d_loss: {2: 8.4f}, g_loss: {3: 8.4f}".format(epoch, n_trained_step, average_d_loss, g_loss))
 
                 # test
                 if (n_trained_step / self.batch_size) % test_batch_interval == 0:
                     self.test(batch, n_trained_step)
 
-            self.test(batch, n_trained_step)
+            print("[info] epoch: {0: 4}, step: {1: 7}, d_loss: {2: 8.4f}, g_loss: {3: 8.4f}".format(epoch, n_trained_step, average_d_loss, g_loss))
+
         saver.save(self.sess, self.logger.dir+"/{0:07}_model.ckpt".format(n_trained_step))
 
     def test(self, batch, n_trained_step):

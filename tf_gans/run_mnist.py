@@ -11,9 +11,9 @@ def get_mnist_data():
     mnist = tf.keras.datasets.mnist
     (x_train, _), (x_test, _) = mnist.load_data()
     x_train, x_test = x_train / 255.0, x_test / 255.0
-    xs = np.concatenate((x_train, x_test), axis=0)
-    xs = np.pad(xs, pad_width=((0, 0), (2, 2), (2, 2)), mode='constant', constant_values=0.)
-    xs = np.expand_dims(xs, axis=xs.ndim)
+    xs = np.concatenate((x_train, x_test), axis=0)  # 70000x28x28
+    xs = np.pad(xs, pad_width=((0, 0), (2, 2), (2, 2)), mode='constant', constant_values=0.)  # 70000x32x32
+    xs = np.expand_dims(xs, axis=xs.ndim)  # 70000x32x32x1
     return xs
 
 

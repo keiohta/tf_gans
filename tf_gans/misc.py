@@ -5,8 +5,9 @@ import dateutil.tz
 import tensorflow as tf
 
 import matplotlib
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from PIL import Image
 
 from chainerrl.experiments.prepare_output_dir import prepare_output_dir
 
@@ -24,6 +25,8 @@ class Logger:
         else:
             self._save_dir = prepare_output_dir(args=args, user_specified_dir=default_dir, time_format=time_format)
         self._fig, self._axis = plt.subplots()
+        self._fig_anime, self._axis_anime = plt.subplots()
+        self._imgs = []
         self._tf_writer = tf.summary.FileWriter(self._save_dir)
         print("[info] log directory is '{}'".format(self._save_dir))
 
@@ -38,6 +41,24 @@ class Logger:
             [self._tf_writer.add_summary(summary, step) for summary in summaries]
         else:
             print("[warn] tensorflow writer is not set to logger")
+
+    def save_img(self, imgs, n_trained_step):
+        file_name = "{}/{:06}.jpg".format(self._save_dir, n_trained_step)
+        Image.fromarray(immerge(imgs)).save(file_name)
+        merged_imgs = immerge(imgs)
+        # self._imgs.append([plt.imshow(merged_imgs, animated=True)])
+        self._imgs.append([self._axis_anime.imshow(merged_imgs, animated=True)])
+
+    def generate_animation(self, fps=15):
+        fig = plt.figure()
+        ani = animation.ArtistAnimation(self._fig_anime, self._imgs, interval=50, blit=True,
+                                        repeat_delay=1000)
+        try:
+            from matplotlib.animation import FFMpegWriter
+            writer = FFMpegWriter(fps=fps, metadata=dict(artist='Me'), bitrate=1800)
+            ani.save("{}/movie.mp4".format(self._save_dir), writer=writer)
+        except:
+            print("[error] you might not have installed ffmpeg or specify the path")
 
     @property
     def dir(self):

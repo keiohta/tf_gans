@@ -194,6 +194,7 @@ class GAN:
 
             print("[info] epoch: {0: 4}, step: {1: 7}, d_loss: {2: 8.4f}, g_loss: {3: 8.4f}".format(epoch, n_trained_step, average_d_loss, g_loss))
 
+        self.logger.generate_animation()
         saver.save(self.sess, self.logger.dir+"/{0:07}_model.ckpt".format(n_trained_step))
 
     def test(self, batch, n_trained_step):
